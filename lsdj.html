@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LSDJ Overclock Tempo Calculator</title>
+<link rel="manifest" href="manifest.json">
+<style>
+  body {
+    font-family: system-ui, sans-serif;
+    background: #111;
+    color: #eee;
+    margin: 0;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  h1 {
+    text-align: center;
+    font-size: 1.4rem;
+  }
+  .card {
+    background: #222;
+    padding: 1rem;
+    border-radius: 1rem;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: 0 0 10px #000;
+  }
+  label {
+    display: block;
+    margin-top: 1rem;
+  }
+  input, select {
+    width: 100%;
+    padding-top: 0.6rem;
+    padding-bottom: 0.6rem;
+    font-size: 1rem;
+    border-radius: 0.5rem;
+    border: none;
+    margin-top: 0.3rem;
+    background: #333;
+    color: #eee;
+    text-align: center;
+  }
+  .result {
+    margin-top: 1.5rem;
+    text-align: center;
+  }
+  .mono {
+    font-family: monospace;
+    color: #0a84ff;
+  }
+  .muted {
+    color: #aaa;
+    font-size: 0.9rem;
+  }
+</style>
+</head>
+<body>
+
+<h1>LSDJ Overclock Tempo Calculator</h1>
+
+<div class="card">
+  <label for="bpm">Target BPM:</label>
+  <input type="number" id="bpm" value="120" min="1" step="0.01" placeholder="Leave blank to use Ticks/Line">
+
+  <label for="tpl">Ticks per Line (decimal or hex like 0x10):</label>
+  <input type="text" id="tpl" placeholder="Leave blank to use BPM">
+
+  <label for="multiplier">Tick Multiplier:</label>
+  <select id="multiplier">
+    <option value="2">2× (~119.46Hz)</option>
+    <option value="3" selected>3× (~179.19Hz)</option>
+    <option value="6">6× (~358.38Hz)</option>
+  </select>
+
+  <label for="lpb">Lines per Beat:</label>
+  <input type="number" id="lpb" value="4" min="1" step="1">
+
+  <div class="result" id="result"></div>
+</div>
+
+<script>
+const REFRESH_RATE = 59.73;
+const bpmInput = document.getElementById('bpm');
+const tplInput = document.getElementById('tpl');
+const multiplierInput = document.getElementById('multiplier');
+const lpbInput = document.getElementById('lpb');
+const resultDiv = document.getElementById('result');
+
+function parseTpl(value) {
+  if (!value) return NaN;
+  value = value.trim();
+  if (value.startsWith("0x") || value.startsWith("0X")) {
+    return parseInt(value, 16);
+  }
+  return parseFloat(value);
+}
+
+function calculate() {
+  const bpm = parseFloat(bpmInput.value);
+  const tpl = parseTpl(tplInput.value);
+  const multiplier = parseFloat(multiplierInput.value);
+  const lpb = parseFloat(lpbInput.value);
+  const tickRate = REFRESH_RATE * multiplier;
+
+  let output = "";
+
+  // Mode 1: BPM → calculate TPL
+  if (bpm && bpm > 0 && (!tplInput.value || isNaN(tpl))) {
+    const ticksPerLineExact = (tickRate * 60) / (bpm * lpb);
+    const ticksPerLineRounded = Math.max(1, Math.round(ticksPerLineExact));
+    const actualBpm = (tickRate * 60) / (ticksPerLineRounded * lpb);
+    const ticksHex = ticksPerLineRounded.toString(16).toUpperCase();
+
+    tplInput.placeholder = ticksPerLineRounded + " (0x" + ticksHex + ")";
+    output = `
+      <p><strong>From BPM:</strong></p>
+      <p><strong>Ticks per Line:</strong> <span class="mono">0x${ticksHex} (${ticksPerLineRounded})</span></p>
+      <p><strong>Actual BPM:</strong> ${actualBpm.toFixed(3)}</p>
+      <p class="muted">(Exact TPL: ${ticksPerLineExact.toFixed(3)})</p>
+    `;
+  }
+
+  // Mode 2: TPL → calculate BPM
+  else if (!bpmInput.value && tpl && tpl > 0) {
+    const actualBpm = (tickRate * 60) / (tpl * lpb);
+    const ticksHex = tpl.toString(16).toUpperCase();
+    output = `
+      <p><strong>From Ticks per Line:</strong></p>
+      <p><strong>Decimal:</strong> <span class="mono">${tpl}</span> &nbsp; <strong>Hex:</strong> <span class="mono">0x${ticksHex}</span></p>
+      <p><strong>Actual BPM:</strong> ${actualBpm.toFixed(3)}</p>
+    `;
+  }
+
+  // Invalid or missing inputs
+  else if (!bpm && !tpl) {
+    output = "<p>Enter either a target BPM or a ticks-per-line value.</p>";
+  }
+
+  resultDiv.innerHTML = output;
+}
+
+// Live update on all changes
+[bpmInput, tplInput, multiplierInput, lpbInput].forEach(el => {
+  el.addEventListener('input', calculate);
+});
+
+// Initial calculation
+calculate();
+</script>
+
+</body>
+</html>
